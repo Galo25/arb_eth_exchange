@@ -1,0 +1,38 @@
+# DEX Arbitrage Backtesting Environment Configuration
+
+# Etherscan API Configuration
+ETHERSCAN_API_KEY=1BHRB44DM7HPSSZ4KWEM3RGUB4I9GRKPHD
+
+# Database Configuration
+# For SQLite (default development)
+DATABASE_URL=sqlite:///dex_arbitrage.db
+
+# For PostgreSQL (production)
+# DATABASE_URL=postgresql://username:password@localhost:5432/dex_arbitrage
+
+# Logging Configuration
+LOG_LEVEL=INFO
+LOG_FILE=data_collection.log
+
+# API Rate Limiting
+ETHERSCAN_RATE_LIMIT=5  # calls per second
+BATCH_SIZE=1000         # events per batch
+
+# Data Collection Settings
+DEFAULT_START_BLOCK=15000000  # Ethereum mainnet block number
+DEFAULT_END_BLOCK=18000000    # Recent block number
+MIN_SPREAD_BPS=50             # Minimum spread in basis points (0.5%)
+
+# Target Exchanges
+ENABLED_EXCHANGES=Uniswap V2,SushiSwap
+
+# Target Token Pairs (comma-separated)
+TARGET_PAIRS=WETH/USDC,WETH/USDT
+
+# Gas Price Estimation (in Gwei)
+DEFAULT_GAS_PRICE=20
+FLASH_LOAN_GAS_LIMIT=500000
+
+# Validation Settings
+CROSS_CHECK_DEXSCREENER=true
+VALIDATION_THRESHOLD=0.95  # 95% accuracy threshold
