@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Cross-Exchange Arbitrage Opportunity Analysis
-Task #010 - Phase 2: Data Scientist Analysis
+Enhanced Cross-Exchange Arbitrage Opportunity Analysis
+Task #010 - Phase 2: Data Scientist Analysis (Enhanced)
 
-This script analyzes the collected multi-coin multi-exchange data to identify
-cross-exchange arbitrage opportunities and provide strategic insights.
+This enhanced script provides comprehensive step-by-step analysis of cross-exchange
+arbitrage opportunities with detailed insights, statistical analysis, and strategic
+recommendations.
 """
 
 import os
@@ -17,19 +18,22 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from pathlib import Path
+from typing import Dict, List
 import warnings
 warnings.filterwarnings('ignore')
 
-# Financial analysis libraries
+# Enhanced financial analysis libraries
 import pandas_ta as ta
 import empyrical as ep
 from scipy import stats
-from scipy.stats import shapiro, jarque_bera
+from scipy.stats import shapiro, jarque_bera, normaltest
 import statsmodels.api as sm
 from statsmodels.stats.diagnostic import acorr_ljungbox
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
 
 class CrossExchangeArbitrageAnalyzer:
-    """Analyzer for cross-exchange arbitrage opportunities"""
+    """Enhanced analyzer for cross-exchange arbitrage opportunities with step-by-step analysis"""
     
     def __init__(self, data_folder: str = "full_data"):
         self.data_folder = Path(data_folder)
@@ -37,11 +41,13 @@ class CrossExchangeArbitrageAnalyzer:
         self.coins = []
         self.data_summary = {}
         self.arbitrage_opportunities = {}
+        self.analysis_steps = []
         self.setup_analysis()
     
     def setup_analysis(self):
         """Setup analysis environment and load data summary"""
-        print("🔍 Setting up Cross-Exchange Arbitrage Analysis...")
+        print("🔍 Setting up Enhanced Cross-Exchange Arbitrage Analysis...")
+        print("=" * 60)
         
         # Load collection summary
         summary_file = self.data_folder / "collection_summary.json"
@@ -57,46 +63,96 @@ class CrossExchangeArbitrageAnalyzer:
         plt.style.use('seaborn-v0_8')
         sns.set_palette("husl")
         plt.rcParams['figure.figsize'] = (15, 10)
+        
+        print("✅ Analysis environment setup complete")
+        print("=" * 60)
     
     def discover_data_structure(self):
-        """Discover the available exchanges and coins from the data folder"""
+        """Step 1: Discover the available exchanges and coins from the data folder"""
+        print("📊 Step 1: Discovering Data Structure...")
+        
         exchanges_folder = self.data_folder / "exchanges"
         coins_folder = self.data_folder / "coins"
         
         if exchanges_folder.exists():
             self.exchanges = [d.name for d in exchanges_folder.iterdir() if d.is_dir()]
-            print(f"📊 Discovered exchanges: {', '.join(self.exchanges)}")
+            print(f"   📈 Discovered exchanges: {', '.join(self.exchanges)}")
         
         if coins_folder.exists():
             self.coins = [d.name for d in coins_folder.iterdir() if d.is_dir()]
-            print(f"🪙 Discovered coins: {', '.join(self.coins)}")
+            print(f"   🪙 Discovered coins: {', '.join(self.coins)}")
+        
+        # Record analysis step
+        self.analysis_steps.append({
+            'step': 1,
+            'title': 'Data Structure Discovery',
+            'description': f'Found {len(self.exchanges)} exchanges and {len(self.coins)} coins',
+            'exchanges': self.exchanges,
+            'coins': self.coins
+        })
+        
+        print(f"✅ Data structure discovery complete: {len(self.exchanges)} exchanges, {len(self.coins)} coins")
     
     def load_exchange_coin_data(self, exchange: str, coin: str) -> pd.DataFrame:
-        """Load data for a specific exchange-coin pair"""
+        """Load data for a specific exchange-coin pair with enhanced error handling"""
         exchange_folder = self.data_folder / "exchanges" / exchange / coin
         
         if not exchange_folder.exists():
-            print(f"⚠️ No data folder found for {exchange}/{coin}")
+            print(f"   ⚠️ No data folder found for {exchange}/{coin}")
             return pd.DataFrame()
         
         # Load all parquet files and combine
         all_data = []
-        for parquet_file in exchange_folder.glob("*.parquet"):
+        parquet_files = list(exchange_folder.glob("*.parquet"))
+        
+        print(f"   📁 Loading {len(parquet_files)} data files for {exchange}/{coin}")
+        
+        for parquet_file in parquet_files:
             try:
                 df = pd.read_parquet(parquet_file)
                 all_data.append(df)
             except Exception as e:
-                print(f"❌ Error loading {parquet_file}: {e}")
+                print(f"   ❌ Error loading {parquet_file.name}: {e}")
         
         if all_data:
             combined_data = pd.concat(all_data, ignore_index=False)
             combined_data = combined_data.sort_index()
             combined_data = combined_data[~combined_data.index.duplicated(keep='first')]
-            print(f"✅ Loaded {len(combined_data)} records for {exchange}/{coin}")
+            
+            # Basic data quality checks
+            print(f"   ✅ Loaded {len(combined_data)} records for {exchange}/{coin}")
+            print(f"   📅 Date range: {combined_data.index.min()} to {combined_data.index.max()}")
+            print(f"   💰 Price range: ${combined_data['close'].min():.2f} - ${combined_data['close'].max():.2f}")
+            
             return combined_data
         else:
-            print(f"⚠️ No data files found for {exchange}/{coin}")
+            print(f"   ⚠️ No data files found for {exchange}/{coin}")
             return pd.DataFrame()
+    
+    def calculate_data_quality_score(self, data: pd.DataFrame) -> float:
+        """Calculate a data quality score (0-100)"""
+        if data.empty:
+            return 0.0
+        
+        # Check for missing values
+        missing_score = 100 - (data.isnull().sum().sum() / (len(data) * len(data.columns)) * 100)
+        
+        # Check for price anomalies (negative prices, extreme values)
+        price_score = 100
+        if 'close' in data.columns:
+            negative_prices = (data['close'] <= 0).sum()
+            extreme_prices = (data['close'] > data['close'].mean() * 10).sum()
+            price_score = 100 - ((negative_prices + extreme_prices) / len(data) * 100)
+        
+        # Check for volume anomalies
+        volume_score = 100
+        if 'volume' in data.columns:
+            negative_volume = (data['volume'] < 0).sum()
+            volume_score = 100 - (negative_volume / len(data) * 100)
+        
+        # Overall score (weighted average)
+        overall_score = (missing_score * 0.4 + price_score * 0.4 + volume_score * 0.2)
+        return max(0, min(100, overall_score))
     
     def calculate_cross_exchange_spreads(self, coin: str) -> pd.DataFrame:
         """Calculate spreads between exchanges for a specific coin"""
@@ -408,52 +464,122 @@ class CrossExchangeArbitrageAnalyzer:
         return report_text
     
     def run_complete_analysis(self, min_spread_pct: float = 0.1):
-        """Run complete arbitrage analysis pipeline"""
-        print("🚀 Starting complete cross-exchange arbitrage analysis...")
+        """Run complete enhanced arbitrage analysis pipeline with step-by-step insights"""
+        print("🚀 Starting Enhanced Cross-Exchange Arbitrage Analysis Pipeline...")
+        print("=" * 80)
         
-        # 1. Analyze all coins
-        opportunities = self.analyze_all_coins(min_spread_pct)
+        # Step 1: Data Structure Discovery (already done in setup)
+        print("✅ Step 1 Complete: Data Structure Discovery")
         
-        # 2. Create visualizations
-        self.create_arbitrage_visualizations(opportunities)
+        # Step 2: Data Quality Analysis for all coins
+        print("\n📊 Step 2: Comprehensive Data Quality Analysis...")
+        quality_reports = {}
+        for coin in self.coins:
+            quality_reports[coin] = self.analyze_data_quality(coin)
         
-        # 3. Generate report
-        report = self.generate_arbitrage_report(opportunities)
+        # Step 3: Cross-Exchange Spread Analysis
+        print("\n📊 Step 3: Cross-Exchange Spread Analysis...")
+        spread_analysis = {}
+        for coin in self.coins:
+            spread_analysis[coin] = self.calculate_cross_exchange_spreads(coin)
         
-        # 4. Save opportunities data
-        opportunities_file = self.data_folder / "analysis" / "arbitrage_opportunities.json"
+        # Step 4: Arbitrage Opportunity Identification
+        print("\n🎯 Step 4: Arbitrage Opportunity Identification...")
+        all_opportunities = {}
+        total_opportunities = 0
+        
+        for coin in self.coins:
+            print(f"\n   📊 Analyzing {coin}...")
+            opportunities = self.identify_arbitrage_opportunities(coin, min_spread_pct)
+            all_opportunities[coin] = opportunities
+            
+            if opportunities and opportunities.get('summary'):
+                total_opportunities += opportunities['summary']['total_opportunities']
+        
+        # Step 5: Comprehensive Analysis Summary
+        print("\n📋 Step 5: Generating Comprehensive Analysis Summary...")
+        
+        overall_summary = {
+            'analysis_date': pd.Timestamp.now().isoformat(),
+            'total_coins_analyzed': len(self.coins),
+            'total_exchanges': len(self.exchanges),
+            'total_opportunities': total_opportunities,
+            'coins_with_opportunities': len([c for c in all_opportunities.values() if c.get('opportunities')]),
+            'min_spread_threshold': min_spread_pct,
+            'analysis_steps': self.analysis_steps,
+            'quality_reports': quality_reports
+        }
+        
+        all_opportunities['overall_summary'] = overall_summary
+        
+        # Step 6: Create Enhanced Visualizations
+        print("\n📈 Step 6: Creating Enhanced Visualizations...")
+        self.create_arbitrage_visualizations(all_opportunities)
+        
+        # Step 7: Generate Comprehensive Report
+        print("\n📋 Step 7: Generating Comprehensive Analysis Report...")
+        report = self.generate_arbitrage_report(all_opportunities)
+        
+        # Step 8: Save All Analysis Results
+        print("\n💾 Step 8: Saving Analysis Results...")
+        self.save_analysis_results(all_opportunities)
+        
+        print("\n🎉 Enhanced Analysis Pipeline Complete!")
+        print("=" * 80)
+        
+        return all_opportunities
+    
+    def save_analysis_results(self, opportunities: Dict):
+        """Save all analysis results and data"""
+        print("   💾 Saving analysis results...")
+        
+        # Save opportunities data
+        opportunities_file = self.data_folder / "analysis" / "enhanced_arbitrage_opportunities.json"
         with open(opportunities_file, 'w') as f:
             json.dump(opportunities, f, indent=2, default=str)
         
-        print(f"💾 Saved opportunities data to {opportunities_file}")
-        print("🎉 Complete analysis finished!")
+        # Save analysis steps
+        steps_file = self.data_folder / "analysis" / "analysis_steps.json"
+        with open(steps_file, 'w') as f:
+            json.dump(self.analysis_steps, f, indent=2, default=str)
         
-        return opportunities
+        print(f"   💾 Saved opportunities data to {opportunities_file}")
+        print(f"   💾 Saved analysis steps to {steps_file}")
 
 def main():
     """Main execution function"""
     import argparse
     
-    parser = argparse.ArgumentParser(description="Cross-Exchange Arbitrage Analyzer")
+    parser = argparse.ArgumentParser(description="Enhanced Cross-Exchange Arbitrage Analyzer")
     parser.add_argument('--data-folder', type=str, default='full_data',
                        help='Path to data folder')
     parser.add_argument('--min-spread', type=float, default=0.1,
                        help='Minimum spread percentage for opportunities')
     parser.add_argument('--coin', type=str, help='Analyze specific coin only')
+    parser.add_argument('--enhanced', action='store_true', 
+                       help='Run enhanced step-by-step analysis pipeline')
     
     args = parser.parse_args()
     
-    # Initialize analyzer
+    # Initialize enhanced analyzer
     analyzer = CrossExchangeArbitrageAnalyzer(args.data_folder)
     
     if args.coin:
         # Analyze specific coin
+        print(f"🎯 Running enhanced analysis for {args.coin}...")
         opportunities = analyzer.identify_arbitrage_opportunities(args.coin, args.min_spread)
-        print(f"\n📊 Analysis results for {args.coin}:")
+        print(f"\n📊 Enhanced analysis results for {args.coin}:")
         print(json.dumps(opportunities, indent=2, default=str))
-    else:
-        # Run complete analysis
+    elif args.enhanced:
+        # Run complete enhanced analysis pipeline
+        print("🚀 Running Enhanced Analysis Pipeline...")
         analyzer.run_complete_analysis(args.min_spread)
+    else:
+        # Run standard analysis
+        print("📊 Running Standard Analysis...")
+        opportunities = analyzer.analyze_all_coins(args.min_spread)
+        print(f"\n📋 Standard analysis complete. Found opportunities for {len(opportunities)} coins.")
+        print("💡 Use --enhanced flag for step-by-step analysis pipeline.")
 
 if __name__ == "__main__":
     main()
